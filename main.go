@@ -11,7 +11,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/panic/", panicDemo)
 	mux.HandleFunc("/", hello)
-	log.Fatal(http.ListenAndServe(":3000", recoverMiddleWare(mux, false)))
+	mux.HandleFunc("/panic-after", panicAfterDemo)
+	log.Fatal(http.ListenAndServe(":3000", recoverMiddleWare(mux, true)))
 }
 
 func recoverMiddleWare(app http.Handler, dev bool) http.Handler {
@@ -24,10 +25,13 @@ func recoverMiddleWare(app http.Handler, dev bool) http.Handler {
 					http.Error(w, "Something went wrong:(", http.StatusInternalServerError)
 					return
 				}
+				w.WriteHeader(http.StatusInternalServerError)
 				fmt.Fprintf(w, "<h1>Panic: %v</h1><pre>%s</pre>", rec, string(stack))
 			}
 		}()
-		app.ServeHTTP(w, r)
+		nw := &responseWriter{ResponseWriter: w}
+		app.ServeHTTP(nw, r)
+		nw.flusher()
 	})
 }
 
@@ -41,4 +45,39 @@ func panicDemo(w http.ResponseWriter, r *http.Request) {
 
 func funcThatPanics() {
 	panic("Oh no!")
+}
+
+func panicAfterDemo(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, "<h1>Oh no!</h1>")
+	funcThatPanics()
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	writes [][]byte
+	status int
+}
+
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	rw.writes = append(rw.writes, b)
+	return len(b), nil
+
+}
+
+func (rw *responseWriter) WriteHeader(status int) {
+	rw.status = status
+}
+
+func (rw *responseWriter) flusher() error {
+	if rw.status != 0 {
+		rw.ResponseWriter.WriteHeader(rw.status)
+	}
+
+	for _, write := range rw.writes {
+		_, err := rw.ResponseWriter.Write(write)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
