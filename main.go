@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"runtime/debug"
+
+	"github.com/alecthomas/chroma/quick"
 )
 
 func main() {
@@ -24,8 +27,17 @@ func sourceCodeHandler(w http.ResponseWriter, r *http.Request) {
 	file, err := os.Open(path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	io.Copy(w, file)
+	b := bytes.NewBuffer(nil)
+	_, err = io.Copy(b, file)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_ = quick.Highlight(w, b.String(), "go", "html", "monokai")
+
 }
 
 func recoverMiddleWare(app http.Handler, dev bool) http.Handler {
@@ -42,9 +54,9 @@ func recoverMiddleWare(app http.Handler, dev bool) http.Handler {
 				fmt.Fprintf(w, "<h1>Panic: %v</h1><pre>%s</pre>", rec, string(stack))
 			}
 		}()
-		nw := &responseWriter{ResponseWriter: w}
-		app.ServeHTTP(nw, r)
-		nw.flusher()
+		// nw := &responseWriter{ResponseWriter: w}
+		app.ServeHTTP(w, r)
+		// nw.flusher()
 	})
 }
 
@@ -65,32 +77,32 @@ func panicAfterDemo(w http.ResponseWriter, r *http.Request) {
 	funcThatPanics()
 }
 
-type responseWriter struct {
-	http.ResponseWriter
-	writes [][]byte
-	status int
-}
+// type responseWriter struct {
+// 	http.ResponseWriter
+// 	writes [][]byte
+// 	status int
+// }
 
-func (rw *responseWriter) Write(b []byte) (int, error) {
-	rw.writes = append(rw.writes, b)
-	return len(b), nil
+// func (rw *responseWriter) Write(b []byte) (int, error) {
+// 	rw.writes = append(rw.writes, b)
+// 	return len(b), nil
 
-}
+// }
 
-func (rw *responseWriter) WriteHeader(status int) {
-	rw.status = status
-}
+// func (rw *responseWriter) WriteHeader(status int) {
+// 	rw.status = status
+// }
 
-func (rw *responseWriter) flusher() error {
-	if rw.status != 0 {
-		rw.ResponseWriter.WriteHeader(rw.status)
-	}
+// func (rw *responseWriter) flusher() error {
+// 	if rw.status != 0 {
+// 		rw.ResponseWriter.WriteHeader(rw.status)
+// 	}
 
-	for _, write := range rw.writes {
-		_, err := rw.ResponseWriter.Write(write)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
+// 	for _, write := range rw.writes {
+// 		_, err := rw.ResponseWriter.Write(write)
+// 		if err != nil {
+// 			return err
+// 		}
+// 	}
+// 	return nil
+// }
