@@ -6,8 +6,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime/debug"
+	"strings"
 
 	"github.com/alecthomas/chroma/quick"
 )
@@ -51,7 +53,7 @@ func recoverMiddleWare(app http.Handler, dev bool) http.Handler {
 					return
 				}
 				w.WriteHeader(http.StatusInternalServerError)
-				fmt.Fprintf(w, "<h1>Panic: %v</h1><pre>%s</pre>", rec, string(stack))
+				fmt.Fprintf(w, "<h1>Panic: %v</h1><pre>%s</pre>", rec, stackLink(string(stack)))
 			}
 		}()
 		// nw := &responseWriter{ResponseWriter: w}
@@ -75,6 +77,27 @@ func funcThatPanics() {
 func panicAfterDemo(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "<h1>Oh no!</h1>")
 	funcThatPanics()
+}
+
+func stackLink(st string) string {
+	lines := strings.Split(st, "\n")
+	for i, line := range lines {
+		if len(line) == 0 || line[0] != '\t' {
+			continue
+		}
+		file := ""
+		for j, ch := range line {
+			if ch == ':' {
+				file = line[1:j]
+				break
+			}
+		}
+		v := url.Values{}
+		v.Set("path", file)
+		lines[i] = "  <a href=\"/debug/?" + v.Encode() + "\">" + file + "</a>" + line[len(file)+1:]
+	}
+	return strings.Join(lines, "\n")
+
 }
 
 // type responseWriter struct {
