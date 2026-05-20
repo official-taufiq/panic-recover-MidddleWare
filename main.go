@@ -56,9 +56,9 @@ func recoverMiddleWare(app http.Handler, dev bool) http.Handler {
 				fmt.Fprintf(w, "<h1>Panic: %v</h1><pre>%s</pre>", rec, stackLink(string(stack)))
 			}
 		}()
-		// nw := &responseWriter{ResponseWriter: w}
+
 		app.ServeHTTP(w, r)
-		// nw.flusher()
+
 	})
 }
 
@@ -99,33 +99,3 @@ func stackLink(st string) string {
 	return strings.Join(lines, "\n")
 
 }
-
-// type responseWriter struct {
-// 	http.ResponseWriter
-// 	writes [][]byte
-// 	status int
-// }
-
-// func (rw *responseWriter) Write(b []byte) (int, error) {
-// 	rw.writes = append(rw.writes, b)
-// 	return len(b), nil
-
-// }
-
-// func (rw *responseWriter) WriteHeader(status int) {
-// 	rw.status = status
-// }
-
-// func (rw *responseWriter) flusher() error {
-// 	if rw.status != 0 {
-// 		rw.ResponseWriter.WriteHeader(rw.status)
-// 	}
-
-// 	for _, write := range rw.writes {
-// 		_, err := rw.ResponseWriter.Write(write)
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
-// 	return nil
-// }
